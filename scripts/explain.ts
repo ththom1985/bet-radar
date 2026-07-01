@@ -26,7 +26,9 @@ async function main() {
   const client = new Anthropic();
 
   const bets = await prisma.valueBet.findMany({
-    where: { fixture: { kickoff: { gte: new Date() } } },
+    // WM-Wetten haben ihre eigene Elo-Begründung (aus runInternational) → hier auslassen,
+    // der Domestic-Agent hätte für Nationalteams keinen sinnvollen Kontext.
+    where: { fixture: { kickoff: { gte: new Date() }, league: { name: { not: "WM 2026" } } } },
     orderBy: { edge: "desc" },
     take: LIMIT,
     include: {
