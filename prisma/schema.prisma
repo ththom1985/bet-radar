@@ -1,0 +1,113 @@
+// Bet-Radar — Datenmodell
+// Lokal: SQLite (schnell, keine Cloud nötig). Vor Deployment auf Neon-Postgres umstellbar.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Eine Liga / ein Wettbewerb (z.B. Bundesliga 2024).
+model League {
+  id             Int      @id @default(autoincrement())
+  name           String
+  country        String
+  apiFootballId  Int      @unique // Liga-ID bei API-Football
+  oddsApiKey     String // Sport-Key bei The Odds API, z.B. "soccer_germany_bundesliga"
+  season         Int // z.B. 2024
+  createdAt      DateTime @default(now())
+
+  teams    Team[]
+  fixtures Fixture[]
+}
+
+/// Eine Mannschaft.
+model Team {
+  id            Int     @id @default(autoincrement())
+  name          String
+  apiFootballId Int?    @unique // null möglich, wenn Team nur aus Quoten-Quelle stammt
+  leagueId      Int
+  league        League  @relation(fields: [leagueId], references: [id])
+
+  homeFixtures Fixture[] @relation("HomeTeam")
+  awayFixtures Fixture[] @relation("AwayTeam")
+
+  @@index([leagueId])
+}
+
+/// Ein Spiel (vergangen oder anstehend).
+model Fixture {
+  id            Int      @id @default(autoincrement())
+  apiFootballId Int?     @unique // gesetzt bei Historie aus API-Football
+  oddsEventId   String?  @unique // gesetzt bei anstehenden Spielen aus The Odds API
+  leagueId      Int
+  league        League   @relation(fields: [leagueId], references: [id])
+  homeTeamId    Int
+  homeTeam      Team     @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId    Int
+  awayTeam      Team     @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  kickoff       DateTime
+  season        Int
+  round         String? // z.B. "Regular Season - 12"
+  status        String // "SCHEDULED" | "FINISHED"
+  homeGoals     Int? // nur bei FINISHED
+  awayGoals     Int?
+
+  odds        OddsSnapshot[]
+  predictions Prediction[]
+  valueBets   ValueBet[]
+
+  @@index([leagueId, kickoff])
+  @@index([status])
+}
+
+/// Quoten-Momentaufnahme eines Buchmachers für ein Spiel (1X2-Markt).
+model OddsSnapshot {
+  id        Int      @id @default(autoincrement())
+  fixtureId Int
+  fixture   Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  bookmaker String
+  homeOdds  Float
+  drawOdds  Float
+  awayOdds  Float
+  fetchedAt DateTime @default(now())
+
+  @@index([fixtureId])
+}
+
+/// Modell-Vorhersage für ein Spiel (eigene Wahrscheinlichkeiten).
+model Prediction {
+  id            Int      @id @default(autoincrement())
+  fixtureId     Int
+  fixture       Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  model         String // z.B. "poisson-v1"
+  expHomeGoals  Float
+  expAwayGoals  Float
+  pHome         Float
+  pDraw         Float
+  pAway         Float
+  createdAt     DateTime @default(now())
+
+  @@unique([fixtureId, model])
+  @@index([fixtureId])
+}
+
+/// Erkannte Value-Wette (Modell optimistischer als Buchmacher).
+model ValueBet {
+  id          Int      @id @default(autoincrement())
+  fixtureId   Int
+  fixture     Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  selection   String // "HOME" | "DRAW" | "AWAY"
+  modelProb   Float // Wahrscheinlichkeit laut Modell
+  bestOdds    Float // beste verfügbare Quote
+  impliedProb Float // implizite Wahrscheinlichkeit der Quote
+  edge        Float // modelProb * bestOdds - 1  (erwarteter Wert)
+  bookmaker   String
+  reasoning   String? // Klartext-Begründung vom Agenten (optional)
+  createdAt   DateTime @default(now())
+
+  @@index([fixtureId])
+  @@index([edge])
+}

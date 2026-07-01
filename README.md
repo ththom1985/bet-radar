@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bet-Radar ⚽
 
-## Getting Started
+Analyse-Dashboard für Fußball-Wetten in den 5 europäischen Topligen
+(Bundesliga, Premier League, La Liga, Serie A, Ligue 1).
 
-First, run the development server:
+Das Tool zieht **Quoten** und **historische Ergebnisse** aus öffentlichen APIs,
+berechnet mit einem **Poisson-Modell** eine eigene Wahrscheinlichkeit je Spiel und
+zeigt an, wo das Modell optimistischer ist als der Buchmacher (**Value**).
+
+## ⚠️ Ehrliche Einordnung — bitte lesen
+
+Bet-Radar ist ein **Entscheidungs-Werkzeug, keine Gelddruckmaschine**.
+
+- Buchmacher-Quoten sind sehr effizient und enthalten eine Marge (~5–7 %).
+- Ein positiver „Value" heißt nur: *Das Modell hält die Wette für unterbewertet* —
+  nicht, dass sie gewinnt. Ob das Modell recht hat, zeigt erst die Auswertung über
+  **viele** Wetten (Backtesting).
+- Setze niemals Geld ein, dessen Verlust du nicht verkraftest.
+
+## Stack
+
+Next.js 16 · TypeScript · Prisma · SQLite (lokal) / Neon-Postgres (Deploy) · Tailwind
+
+## Schnellstart
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx prisma migrate dev      # legt die lokale DB an
+npm run seed                # Demo-Daten (ohne API-Keys)
+npm run predict             # Modell rechnen
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Mit echten Daten (kostenlose API-Keys)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **API-Football** (Spiele, Ergebnisse): https://www.api-football.com/ → Key holen
+2. **The Odds API** (Quoten): https://the-odds-api.com/ → Key holen
+3. Keys in `.env` eintragen:
+   ```
+   API_FOOTBALL_KEY="dein-key"
+   ODDS_API_KEY="dein-key"
+   ```
+4. Abgleich starten (holt echte Daten + rechnet Modell):
+   ```bash
+   npm run sync
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> **Free-Tier schonen:** `npm run sync` möglichst nur **1×/Tag** laufen lassen
+> (API-Football: 100 Requests/Tag, Odds API: 500/Monat).
 
-## Learn More
+## Struktur
 
-To learn more about Next.js, take a look at the following resources:
+```
+lib/
+  leagues.ts            Liga-Konfiguration (IDs der APIs)
+  odds.ts               Quoten-Mathematik (implizite Wahrscheinlichkeit, Marge)
+  predict.ts            Modell-Lauf über die DB
+  clients/
+    apiFootball.ts      Spiele/Ergebnisse
+    oddsApi.ts          Quoten
+  model/
+    poisson.ts          Poisson-Wahrscheinlichkeiten (1X2)
+    strengths.ts        Team-Stärken aus Historie → erwartete Tore
+    value.ts            Value-Erkennung (Edge)
+app/
+  page.tsx              Top Value-Wetten
+  matches/page.tsx      Alle anstehenden Spiele
+scripts/
+  seed.ts               Demo-Daten
+  predict.ts            Modell-CLI
+  sync.ts               Echter API-Abgleich
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Roadmap (nächste Ausbaustufen)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Dixon-Coles-Korrektur für knappe Ergebnisse (0:0, 1:0 …)
+- [ ] Form-Gewichtung (jüngste Spiele stärker als alte)
+- [ ] Verletzungen/Sperren aus API-Football einbeziehen
+- [ ] „Wichtigkeit des Spiels" (Tabellensituation) als Faktor
+- [ ] Claude-Agent: News + Kontext gewichten, Value-Liste in Klartext begründen
+- [ ] Backtesting: Trefferquote & Rendite des Modells über eine Saison messen
+- [ ] Deployment auf Vercel + Neon-Postgres
