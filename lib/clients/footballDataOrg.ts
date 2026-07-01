@@ -28,6 +28,7 @@ export const FD_CODES: Record<string, string> = {
 };
 
 export type FdMatch = {
+  id: number;
   homeTeam: string;
   awayTeam: string;
   homeGoals: number;
@@ -38,6 +39,7 @@ export type FdMatch = {
 };
 
 type RawMatch = {
+  id: number;
   status: string;
   utcDate: string;
   stage: string;
@@ -46,12 +48,14 @@ type RawMatch = {
   score: { fullTime: { home: number | null; away: number | null } };
 };
 
-/** Alle Spiele eines Wettbewerbs (aktuelle Saison). */
-export async function getMatches(code: string): Promise<FdMatch[]> {
-  const data = await get<{ matches: RawMatch[] }>(`/competitions/${code}/matches`);
+/** Alle Spiele eines Wettbewerbs. Ohne season = aktuelle Saison; season z.B. 2025 = 25/26. */
+export async function getMatches(code: string, season?: number): Promise<FdMatch[]> {
+  const q = season ? `?season=${season}` : "";
+  const data = await get<{ matches: RawMatch[] }>(`/competitions/${code}/matches${q}`);
   return (data.matches ?? [])
     .filter((m) => m.homeTeam.name && m.awayTeam.name)
     .map((m) => ({
+      id: m.id,
       homeTeam: m.homeTeam.name!,
       awayTeam: m.awayTeam.name!,
       homeGoals: m.score.fullTime.home ?? 0,

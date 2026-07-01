@@ -25,10 +25,13 @@ export type ExplainContext = {
   home: TeamProfile;
   away: TeamProfile;
   h2h: HeadToHead;
-  hasPlayerData: boolean; // bestätigte Aufstellungen (aktuell false, Free-Tier)
+  hasPlayerData: boolean; // liegen echte Verletzungs-/Einsatzdaten vor (FPL = England)?
+  injuries: { team: string; name: string; statusLabel: string; note: string }[]; // Ausfälle/Fragliche
   news: { title: string; source: string }[]; // aktuelle Schlagzeilen zu beiden Teams
   importanceHome: { score: number; label: string; reason: string };
   importanceAway: { score: number; label: string; reason: string };
+  coachHome: { name: string; since: string | null } | null;
+  coachAway: { name: string; since: string | null } | null;
 };
 
 const SYSTEM = `Du bist ein nüchterner Fußball-Analyst für ein Wett-Dashboard.
@@ -45,6 +48,14 @@ Regeln:
   (Abstiegskampf, Titel, Europa), erhöht das die Motivation/Einsatzbereitschaft — erwähne das,
   wenn ein deutlicher Unterschied zwischen den Teams besteht. Bei "Saisonstart"/"unbekannt" nicht
   darauf eingehen.
+- Trainer-Matchup: Wenn beide Trainer genannt sind UND du ihren Spielstil sicher kennst,
+  ordne kurz ein, wie die Stile aufeinandertreffen (z.B. Hoch-Pressing vs. tiefe Defensive,
+  Ballbesitz vs. Konter) und was das taktisch fürs Spiel bedeuten könnte. Kennst du einen
+  Trainer oder seinen Stil NICHT sicher, lass ihn weg — auf keinen Fall einen Stil erfinden.
+- Verletzungen/Ausfälle: Sind gemeldete Ausfälle dabei, benenne die WICHTIGEN konkret
+  (Schlüsselspieler, viele Ausfälle in einer Mannschaftsteil) und ordne ihren Einfluss ein.
+  Unwichtige Ergänzungsspieler nicht aufbauschen. Wenn "keine Spielerdaten für diese Liga
+  verfügbar" steht, sag am Ende kurz, dass Ausfälle hier (noch) nicht einbezogen sind.
 - Berücksichtige die aktuellen Schlagzeilen NUR, wenn sie spielrelevant sind (Verletzung,
   Sperre, Formkrise, Trainerwechsel, wichtiger Ausfall/Rückkehrer). Reine Transfergerüchte oder
   Finanz-/Randthemen ignorieren. Nenne eine relevante Personalie konkret (z.B. "laut Schlagzeile
@@ -71,6 +82,13 @@ ${c.homeTeam}: ${c.home.played} Spiele, Bilanz ${rec({ wins: c.home.wins, draws:
 ${c.awayTeam}: ${c.away.played} Spiele, Bilanz ${rec({ wins: c.away.wins, draws: c.away.draws, losses: c.away.losses })}, Tore ${c.away.goalsFor}:${c.away.goalsAgainst}, Auswärtsbilanz ${rec(c.away.awayRecord)}, Form (neu→alt) ${c.away.form.join("") || "–"}
 Direkte Duelle: ${h2h || "keine in den Daten"}
 
+Verletzungen / Ausfälle (aus Spielerdaten, sofern verfügbar):
+${c.injuries.length ? c.injuries.map((i) => `- ${i.name} (${i.team}, ${i.statusLabel}): ${i.note}`).join("\n") : c.hasPlayerData ? "- keine relevanten Ausfälle gemeldet" : "- keine Spielerdaten für diese Liga verfügbar"}
+
+Trainer (aktuell):
+- ${c.homeTeam}: ${c.coachHome ? `${c.coachHome.name}${c.coachHome.since ? ` (seit ${c.coachHome.since})` : ""}` : "unbekannt"}
+- ${c.awayTeam}: ${c.coachAway ? `${c.coachAway.name}${c.coachAway.since ? ` (seit ${c.coachAway.since})` : ""}` : "unbekannt"}
+
 Wichtigkeit des Spiels (aus Tabellenlage):
 - ${c.homeTeam}: ${c.importanceHome.reason} (Score ${c.importanceHome.score}/100)
 - ${c.awayTeam}: ${c.importanceAway.reason} (Score ${c.importanceAway.score}/100)
@@ -78,7 +96,7 @@ Wichtigkeit des Spiels (aus Tabellenlage):
 Aktuelle Schlagzeilen zu beiden Teams (letzte Tage):
 ${c.news.length ? c.news.map((n) => `- (${n.source}) ${n.title}`).join("\n") : "- keine gefunden"}
 
-Bestätigte Aufstellungen verfügbar: ${c.hasPlayerData ? "ja" : "nein"}`;
+Hinweis: Bestätigte Start-Aufstellungen liegen noch nicht vor (kommen erst ~1 Std. vor Anpfiff).`;
 }
 
 export async function explainValueBet(

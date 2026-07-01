@@ -5,6 +5,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { PrismaClient } from "@prisma/client";
 import { getTeamProfile, getHeadToHead, getMatchImportance, type TeamProfile } from "../lib/stats";
 import { getRelevantNews } from "../lib/news/fetchNews";
+import { getTeamInjuries, fplCovers } from "../lib/clients/fpl";
+import { getCurrentCoach } from "../lib/clients/coaches";
 import { explainValueBet } from "../lib/agent/explain";
 
 const prisma = new PrismaClient();
@@ -52,6 +54,23 @@ async function main() {
     const newsItems = await getRelevantNews([f.homeTeam.name, f.awayTeam.name]);
     const importance = await getMatchImportance(f.leagueId, f.season, f.homeTeamId, f.awayTeamId);
 
+    // Verletzungen/Ausfälle (FPL = England). Für andere Ligen leer.
+    const [homeInj, awayInj, homeCov, awayCov] = await Promise.all([
+      getTeamInjuries(f.homeTeam.name),
+      getTeamInjuries(f.awayTeam.name),
+      fplCovers(f.homeTeam.name),
+      fplCovers(f.awayTeam.name),
+    ]);
+    const injuries = [
+      ...homeInj.map((p) => ({ team: f.homeTeam.name, name: p.name, statusLabel: p.statusLabel, note: p.note })),
+      ...awayInj.map((p) => ({ team: f.awayTeam.name, name: p.name, statusLabel: p.statusLabel, note: p.note })),
+    ];
+
+    const [coachHome, coachAway] = await Promise.all([
+      getCurrentCoach(f.homeTeam.apiFootballId),
+      getCurrentCoach(f.awayTeam.apiFootballId),
+    ]);
+
     const reasoning = await explainValueBet(client, {
       league: f.league.name,
       kickoff: f.kickoff,
@@ -67,10 +86,13 @@ async function main() {
       home,
       away,
       h2h,
-      hasPlayerData: false,
+      hasPlayerData: homeCov || awayCov,
+      injuries,
       news: newsItems.map((n) => ({ title: n.title, source: n.source })),
       importanceHome: importance.home,
       importanceAway: importance.away,
+      coachHome,
+      coachAway,
     });
 
     await prisma.valueBet.update({ where: { id: b.id }, data: { reasoning } });

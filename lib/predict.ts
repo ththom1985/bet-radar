@@ -23,8 +23,16 @@ export async function runPredictions() {
   let valueCount = 0;
 
   for (const league of leagues) {
-    const finished = await prisma.fixture.findMany({
+    // Stärken aus der NEUESTEN verfügbaren Saison (z.B. Bundesliga 25/26 via OpenLigaDB
+    // statt der älteren 2024er-Daten).
+    const latest = await prisma.fixture.aggregate({
       where: { leagueId: league.id, status: "FINISHED", homeGoals: { not: null } },
+      _max: { season: true },
+    });
+    const strengthSeason = latest._max.season ?? undefined;
+
+    const finished = await prisma.fixture.findMany({
+      where: { leagueId: league.id, status: "FINISHED", homeGoals: { not: null }, season: strengthSeason },
       select: { homeTeamId: true, awayTeamId: true, homeGoals: true, awayGoals: true },
     });
 

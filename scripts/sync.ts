@@ -11,11 +11,15 @@ import { PrismaClient } from "@prisma/client";
 import { LEAGUES } from "../lib/leagues";
 import { fetchFixtures, isFinished } from "../lib/clients/apiFootball";
 import { fetchOdds, bestThreeWay, normalizeName } from "../lib/clients/oddsApi";
+import { getBundesligaMatches } from "../lib/clients/openligadb";
+import { getMatches as getFdMatches, FD_CODES } from "../lib/clients/footballDataOrg";
+import { normalizeClub } from "../lib/clubs";
 import { runPredictions } from "../lib/predict";
 
 const prisma = new PrismaClient();
 
-const HISTORY_SEASON = 2024; // neueste im Free-Tier verfügbare Saison
+const HISTORY_SEASON = 2024; // neueste im API-Football-Free-Tier verfügbare Saison
+const CURRENT_SEASON = 2025; // aktuelle BL-Saison via OpenLigaDB (nicht saison-gesperrt)
 
 // --- Historie aus API-Football ---
 async function syncHistory(leagueId: number, apiLeagueId: number) {
@@ -57,6 +61,73 @@ async function upsertTeamByApiId(apiId: number, name: string, leagueId: number):
     update: { name },
   });
   return team.id;
+}
+
+// --- Aktuelle Saison (25/26) importieren ---
+// Bundesliga ← OpenLigaDB (mit Torschützen), übrige 4 Ligen ← football-data.org.
+// Beide gratis und NICHT saison-gesperrt → aktuelle Team-Stärken statt 2024er-Daten.
+type SimpleMatch = {
+  homeTeam: string;
+  awayTeam: string;
+  homeGoals: number;
+  awayGoals: number;
+  date: Date;
+  extId: string;
+};
+
+async function currentSeasonMatches(leagueName: string): Promise<SimpleMatch[]> {
+  if (leagueName === "Bundesliga") {
+    const m = (await getBundesligaMatches(CURRENT_SEASON)).filter((x) => x.finished);
+    return m.map((x) => ({ ...x, extId: `old:${x.id}` }));
+  }
+  const code = FD_CODES[leagueName];
+  if (!code) return [];
+  const m = (await getFdMatches(code, CURRENT_SEASON)).filter((x) => x.finished);
+  return m.map((x) => ({ ...x, extId: `fd:${x.id}` }));
+}
+
+async function importCurrentSeason(leagueId: number, matches: SimpleMatch[]) {
+  // Bestehende Teams (aus API-Football-Historie) per Vereinsname zuordnen,
+  // damit die apiFootballId (für Trainer-Abruf) erhalten bleibt.
+  const teams = await prisma.team.findMany({ where: { leagueId } });
+  const index = new Map<string, number>();
+  for (const t of teams) index.set(normalizeClub(t.name), t.id);
+
+  async function resolveTeam(name: string): Promise<number> {
+    const norm = normalizeClub(name);
+    if (index.has(norm)) return index.get(norm)!;
+    // Fallback: enthält-Vergleich (z.B. "lyon" ⊂ "lyonnais", "tottenham" ⊂ "tottenhamhotspur").
+    for (const [key, id] of index) {
+      if (key.length >= 4 && (key.includes(norm) || norm.includes(key))) return id;
+    }
+    const created = await prisma.team.create({ data: { name, leagueId } });
+    index.set(norm, created.id);
+    return created.id;
+  }
+
+  let imported = 0;
+  for (const m of matches) {
+    const homeId = await resolveTeam(m.homeTeam);
+    const awayId = await resolveTeam(m.awayTeam);
+    await prisma.fixture.upsert({
+      where: { oddsEventId: m.extId },
+      create: {
+        oddsEventId: m.extId,
+        leagueId,
+        homeTeamId: homeId,
+        awayTeamId: awayId,
+        kickoff: m.date,
+        season: CURRENT_SEASON,
+        round: "Saison 25/26",
+        status: "FINISHED",
+        homeGoals: m.homeGoals,
+        awayGoals: m.awayGoals,
+      },
+      update: { homeGoals: m.homeGoals, awayGoals: m.awayGoals, status: "FINISHED" },
+    });
+    imported++;
+  }
+  return imported;
 }
 
 // --- Anstehende Spiele + Quoten aus The Odds API ---
@@ -148,9 +219,19 @@ async function main() {
       });
 
       const finished = await syncHistory(league.id, cfg.apiFootballId);
+      // Aktuelle Saison 25/26 (BL ← OpenLigaDB, sonst ← football-data.org).
+      let current = 0;
+      try {
+        const cm = await currentSeasonMatches(cfg.name);
+        if (cm.length) current = await importCurrentSeason(league.id, cm);
+      } catch (e) {
+        console.log(`   Aktuell-Import fehlgeschlagen: ${(e as Error).message.slice(0, 50)}`);
+      }
       const odds = await syncUpcomingFromOdds(league.id, cfg.oddsApiKey);
       console.log(
-        `${cfg.name}: Historie ${finished} Erg. · anstehend ${odds.matched}/${odds.events} mit Quoten`
+        `${cfg.name}: Historie ${finished} Erg.` +
+          (current ? ` · aktuell ${current} (25/26)` : "") +
+          ` · anstehend ${odds.matched}/${odds.events} mit Quoten`
       );
       if (odds.unmatched.length) {
         console.log(`   ohne Quoten/Zuordnung: ${odds.unmatched.slice(0, 5).join("; ")}`);

@@ -37,9 +37,12 @@ async function main() {
     away: midTeam,
     h2h: { played: 2, results: [] },
     hasPlayerData: false,
+    injuries: [],
     news: [],
     importanceHome: { score: 95, label: "Abstiegskampf", reason: "Abstiegskampf: Platz 16/18, 1 Punkt Vorsprung auf die Abstiegszone, 2 Spiele offen." },
     importanceAway: { score: 27, label: "Mittelfeld", reason: "Mittelfeld: Platz 11/18, ohne akutes Saisonziel, 2 Spiele offen." },
+    coachHome: null,
+    coachAway: null,
   });
   console.log("\n--- Agent-Analyse (Demo mit Wichtigkeit) ---\n");
   console.log(text);
