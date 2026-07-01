@@ -1,5 +1,6 @@
 // Team-Statistiken aus der Historie (beendete Spiele) — Kontext für den Agenten.
 import { prisma } from "./prisma";
+import { buildStandings, matchImportance, type MatchImportance } from "./importance";
 
 export type TeamProfile = {
   teamId: number;
@@ -65,6 +66,40 @@ export type HeadToHead = {
   played: number;
   results: { date: Date; homeTeam: string; awayTeam: string; homeGoals: number; awayGoals: number }[];
 };
+
+/**
+ * Wichtigkeit des Spiels für beide Teams, aus der Tabelle der LAUFENDEN Saison.
+ * Solange die Saison noch keine Ergebnisse hat (Sommerpause), liefert die Engine
+ * ehrlich "Saisonstart"/"unbekannt" — sie aktiviert sich automatisch, sobald gespielt wird.
+ */
+export async function getMatchImportance(
+  leagueId: number,
+  season: number,
+  homeTeamId: number,
+  awayTeamId: number
+): Promise<{ home: MatchImportance; away: MatchImportance }> {
+  const games = await prisma.fixture.findMany({
+    where: { leagueId, season, status: "FINISHED", homeGoals: { not: null } },
+    include: { homeTeam: true, awayTeam: true },
+  });
+
+  const names = new Map<number, string>();
+  for (const g of games) {
+    names.set(g.homeTeamId, g.homeTeam.name);
+    names.set(g.awayTeamId, g.awayTeam.name);
+  }
+  const standings = buildStandings(
+    games.map((g) => ({ homeTeamId: g.homeTeamId, awayTeamId: g.awayTeamId, homeGoals: g.homeGoals!, awayGoals: g.awayGoals! })),
+    names
+  );
+  // Spieltage grob aus Teamzahl schätzen (Doppel-Rundenturnier).
+  const totalMatchdays = standings.length > 1 ? (standings.length - 1) * 2 : 34;
+
+  return {
+    home: matchImportance(standings, totalMatchdays, homeTeamId),
+    away: matchImportance(standings, totalMatchdays, awayTeamId),
+  };
+}
 
 /** Direkte Duelle beider Teams aus der Historie (beide Spielorte). */
 export async function getHeadToHead(teamAId: number, teamBId: number): Promise<HeadToHead> {

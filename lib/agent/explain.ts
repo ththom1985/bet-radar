@@ -27,6 +27,8 @@ export type ExplainContext = {
   h2h: HeadToHead;
   hasPlayerData: boolean; // bestätigte Aufstellungen (aktuell false, Free-Tier)
   news: { title: string; source: string }[]; // aktuelle Schlagzeilen zu beiden Teams
+  importanceHome: { score: number; label: string; reason: string };
+  importanceAway: { score: number; label: string; reason: string };
 };
 
 const SYSTEM = `Du bist ein nüchterner Fußball-Analyst für ein Wett-Dashboard.
@@ -39,6 +41,10 @@ Regeln:
 - Nenne konkrete Zahlen (z.B. Form, Bilanz, Modell % vs. Quote %).
 - Bleib sachlich und ehrlich. Keine Gewinnversprechen, kein Hype. Ein "Value" heißt nur:
   Das Modell hält die Wette für unterbewertet — nicht, dass sie gewinnt.
+- Berücksichtige die Wichtigkeit des Spiels: Steht für ein Team viel auf dem Spiel
+  (Abstiegskampf, Titel, Europa), erhöht das die Motivation/Einsatzbereitschaft — erwähne das,
+  wenn ein deutlicher Unterschied zwischen den Teams besteht. Bei "Saisonstart"/"unbekannt" nicht
+  darauf eingehen.
 - Berücksichtige die aktuellen Schlagzeilen NUR, wenn sie spielrelevant sind (Verletzung,
   Sperre, Formkrise, Trainerwechsel, wichtiger Ausfall/Rückkehrer). Reine Transfergerüchte oder
   Finanz-/Randthemen ignorieren. Nenne eine relevante Personalie konkret (z.B. "laut Schlagzeile
@@ -64,6 +70,10 @@ Erwartete Tore (Modell): ${c.homeTeam} ${c.expHomeGoals.toFixed(2)} : ${c.expAwa
 ${c.homeTeam}: ${c.home.played} Spiele, Bilanz ${rec({ wins: c.home.wins, draws: c.home.draws, losses: c.home.losses })}, Tore ${c.home.goalsFor}:${c.home.goalsAgainst}, Heimbilanz ${rec(c.home.homeRecord)}, Form (neu→alt) ${c.home.form.join("") || "–"}
 ${c.awayTeam}: ${c.away.played} Spiele, Bilanz ${rec({ wins: c.away.wins, draws: c.away.draws, losses: c.away.losses })}, Tore ${c.away.goalsFor}:${c.away.goalsAgainst}, Auswärtsbilanz ${rec(c.away.awayRecord)}, Form (neu→alt) ${c.away.form.join("") || "–"}
 Direkte Duelle: ${h2h || "keine in den Daten"}
+
+Wichtigkeit des Spiels (aus Tabellenlage):
+- ${c.homeTeam}: ${c.importanceHome.reason} (Score ${c.importanceHome.score}/100)
+- ${c.awayTeam}: ${c.importanceAway.reason} (Score ${c.importanceAway.score}/100)
 
 Aktuelle Schlagzeilen zu beiden Teams (letzte Tage):
 ${c.news.length ? c.news.map((n) => `- (${n.source}) ${n.title}`).join("\n") : "- keine gefunden"}

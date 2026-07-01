@@ -3,7 +3,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { PrismaClient } from "@prisma/client";
-import { getTeamProfile, getHeadToHead, type TeamProfile } from "../lib/stats";
+import { getTeamProfile, getHeadToHead, getMatchImportance, type TeamProfile } from "../lib/stats";
 import { getRelevantNews } from "../lib/news/fetchNews";
 import { explainValueBet } from "../lib/agent/explain";
 
@@ -50,6 +50,7 @@ async function main() {
     const away = await profile(f.awayTeamId);
     const h2h = await getHeadToHead(f.homeTeamId, f.awayTeamId);
     const newsItems = await getRelevantNews([f.homeTeam.name, f.awayTeam.name]);
+    const importance = await getMatchImportance(f.leagueId, f.season, f.homeTeamId, f.awayTeamId);
 
     const reasoning = await explainValueBet(client, {
       league: f.league.name,
@@ -68,6 +69,8 @@ async function main() {
       h2h,
       hasPlayerData: false,
       news: newsItems.map((n) => ({ title: n.title, source: n.source })),
+      importanceHome: importance.home,
+      importanceAway: importance.away,
     });
 
     await prisma.valueBet.update({ where: { id: b.id }, data: { reasoning } });
