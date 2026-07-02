@@ -23,6 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <nav className="flex gap-1 text-sm">
               <NavLink href="/">Top-Wetten</NavLink>
               <NavLink href="/matches">Spiele</NavLink>
+              <NavLink href="/portfolio">Tracker</NavLink>
               <NavLink href="/ranking">WM-Rangliste</NavLink>
             </nav>
           </div>

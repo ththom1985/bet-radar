@@ -13,6 +13,7 @@
     "explain": "tsx scripts/explain.ts",
     "backtest": "tsx scripts/backtest.ts",
     "intl": "tsx scripts/international.ts",
+    "paper": "tsx scripts/paper.ts",
     "sync": "tsx scripts/sync.ts",
     "db:studio": "prisma studio"
   },

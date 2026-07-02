@@ -94,6 +94,29 @@ model Prediction {
   @@index([fixtureId])
 }
 
+/// Simulierte Wette (Paper-Trading) — KEIN echtes Geld. Trackt, ob die Tipps profitabel wären.
+model PaperBet {
+  id             Int       @id @default(autoincrement())
+  fixtureId      Int?
+  league         String
+  homeTeam       String
+  awayTeam       String
+  kickoff        DateTime
+  selection      String // "HOME" | "DRAW" | "AWAY"
+  selectionLabel String
+  odds           Float
+  stake          Float
+  edge           Float
+  status         String // "OPEN" | "WON" | "LOST"
+  resultScore    String? // z.B. "2:1"
+  payout         Float? // Rückfluss bei Gewinn (stake*odds), sonst 0
+  placedAt       DateTime  @default(now())
+  settledAt      DateTime?
+
+  @@unique([fixtureId, selection])
+  @@index([status])
+}
+
 /// Kleiner Key-Value-Speicher für JSON-Schnappschüsse (z.B. Elo-Weltrangliste).
 model Snapshot {
   key       String   @id

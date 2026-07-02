@@ -1,0 +1,39 @@
+name: Daten aktualisieren
+
+# Läuft täglich um 05:30 UTC (~06:30/07:30 DE) + manuell auslösbar.
+on:
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch: {}
+
+# Verhindert parallele Läufe.
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      FOOTBALL_DATA_ORG_KEY: ${{ secrets.FOOTBALL_DATA_ORG_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Ligen + Quoten + Modell
+        run: npm run sync
+      - name: WM / International
+        run: npm run intl
+      - name: Begründungen (Agent)
+        run: npm run explain
+      - name: Paper-Trading (platzieren + abrechnen)
+        run: npm run paper
