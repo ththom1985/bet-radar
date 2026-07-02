@@ -1,6 +1,12 @@
 // Server-seitige Datenabfragen fürs Dashboard.
 import { prisma } from "./prisma";
 
+// Anzeige-/Wett-Fenster: nur die nächsten 7 Tage.
+function next7Days() {
+  const now = new Date();
+  return { gte: now, lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000) };
+}
+
 export type TopBet = {
   fixtureId: number;
   league: string;
@@ -29,7 +35,7 @@ export async function getTopValueBets(limit = 10, league?: string): Promise<TopB
   const bets = await prisma.valueBet.findMany({
     where: {
       fixture: {
-        kickoff: { gte: new Date() },
+        kickoff: next7Days(),
         ...(league ? { league: { name: league } } : {}),
       },
     },
@@ -74,7 +80,7 @@ export type UpcomingMatch = {
 /** Alle anstehenden Spiele mit Modell-Wahrscheinlichkeiten und Quoten. */
 export async function getUpcomingMatches(): Promise<UpcomingMatch[]> {
   const fixtures = await prisma.fixture.findMany({
-    where: { status: "SCHEDULED", kickoff: { gte: new Date() } },
+    where: { status: "SCHEDULED", kickoff: next7Days() },
     orderBy: { kickoff: "asc" },
     include: {
       homeTeam: true,
@@ -119,7 +125,7 @@ export async function getUpcomingMatches(): Promise<UpcomingMatch[]> {
 /** Ligen, die aktuell Value-Wetten haben (für Filter-Chips). */
 export async function getLeaguesWithBets(): Promise<string[]> {
   const rows = await prisma.valueBet.findMany({
-    where: { fixture: { kickoff: { gte: new Date() } } },
+    where: { fixture: { kickoff: next7Days() } },
     select: { fixture: { select: { league: { select: { name: true } } } } },
     distinct: ["fixtureId"],
   });

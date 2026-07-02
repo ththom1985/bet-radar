@@ -14,7 +14,7 @@ export default async function PortfolioPage() {
       <section>
         <h1 className="text-2xl font-semibold">Paper-Trading-Tracker</h1>
         <p className="text-white/50 mt-1 text-sm">
-          Simuliert Wetten nur auf Spiele des <strong className="text-white/70">jeweiligen Tages</strong>{" "}
+          Simuliert Wetten auf Spiele der <strong className="text-white/70">nächsten 7 Tage</strong>{" "}
           mit einem Vorteil ab {(p.edgeThreshold * 100).toFixed(0)}%. Der Einsatz wird an die Quote
           angepasst, sodass ein Gewinn immer {eur(p.targetReturn)} zurückbringt (Verdopplung der
           20-€-Basis). Startkapital {eur(p.initial)}, inkl. {(p.taxRate * 100).toFixed(0)}% Wettsteuer.

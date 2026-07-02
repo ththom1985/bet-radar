@@ -26,13 +26,12 @@ function sameTeam(a: string, b: string): boolean {
 
 /** Setzt simulierte Wetten auf alle aktuellen Value-Tipps über der Potenzial-Schwelle. */
 export async function placeBets() {
-  // Nur Spiele vom SELBEN Tag (ab jetzt bis Tagesende). Keine guten dabei → gar nicht tippen.
+  // Spiele der nächsten 7 Tage. Keine guten dabei → gar nicht tippen.
   const now = new Date();
-  const endOfDay = new Date(now);
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  const weekAhead = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
 
   const candidates = await prisma.valueBet.findMany({
-    where: { edge: { gte: EDGE_THRESHOLD }, fixture: { kickoff: { gte: now, lte: endOfDay } } },
+    where: { edge: { gte: EDGE_THRESHOLD }, fixture: { kickoff: { gte: now, lte: weekAhead } } },
     orderBy: { edge: "desc" }, // beste zuerst
     include: { fixture: { include: { homeTeam: true, awayTeam: true, league: true } } },
   });
