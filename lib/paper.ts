@@ -8,7 +8,7 @@ import { normalizePlayer } from "./players";
 
 export const INITIAL_BANKROLL = 1000; // €, virtuell
 export const TARGET_RETURN = 40; // € Ziel-Rückfluss bei Gewinn (= Verdopplung der 20€-Basis)
-export const EDGE_THRESHOLD = 0.1; // "guter Value": nur Tipps ab +10% Vorteil
+export const EDGE_THRESHOLD = 0.05; // Value nach Markt-Shrinkage (bereits marktkorrigiert)
 export const TAX_RATE = 0.05; // 5% deutsche Wettsteuer auf den Umsatz
 
 // Einsatz an die Quote anpassen, sodass ein Gewinn immer TARGET_RETURN zurückbringt.
