@@ -94,6 +94,13 @@ model Prediction {
   @@index([fixtureId])
 }
 
+/// Kleiner Key-Value-Speicher für JSON-Schnappschüsse (z.B. Elo-Weltrangliste).
+model Snapshot {
+  key       String   @id
+  value     String // JSON-String
+  updatedAt DateTime @updatedAt
+}
+
 /// Erkannte Value-Wette (Modell optimistischer als Buchmacher).
 model ValueBet {
   id          Int      @id @default(autoincrement())

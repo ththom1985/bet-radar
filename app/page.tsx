@@ -1,19 +1,36 @@
-import { getTopValueBets, getStats } from "@/lib/queries";
+import Link from "next/link";
+import { getTopValueBets, getStats, getLeaguesWithBets } from "@/lib/queries";
 import { pct, odds, edgePct, dateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const [bets, stats] = await Promise.all([getTopValueBets(10), getStats()]);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ league?: string }>;
+}) {
+  const { league } = await searchParams;
+  const [bets, stats, leagues] = await Promise.all([
+    getTopValueBets(10, league),
+    getStats(),
+    getLeaguesWithBets(),
+  ]);
 
   return (
     <div className="space-y-8">
       <section>
         <h1 className="text-2xl font-semibold">Top Value-Wetten</h1>
         <p className="text-white/50 mt-1 text-sm">
-          Spiele, bei denen unser Poisson-Modell eine höhere Gewinnchance sieht als die Quote
-          hergibt (Quote ≥ 1,80). Sortiert nach erwartetem Vorteil.
+          Spiele, bei denen unser Modell eine höhere Gewinnchance sieht als die Quote hergibt
+          (Quote ≥ 1,80). Sortiert nach erwartetem Vorteil.
         </p>
+      </section>
+
+      <section className="flex flex-wrap gap-2">
+        <FilterChip label="Alle" href="/" active={!league} />
+        {leagues.map((l) => (
+          <FilterChip key={l} label={l} href={`/?league=${encodeURIComponent(l)}`} active={league === l} />
+        ))}
       </section>
 
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -42,7 +59,13 @@ export default async function Home() {
                 <span className="text-white/30 font-mono text-sm w-6 text-right">{i + 1}</span>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/60">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        b.league === "WM 2026"
+                          ? "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30"
+                          : "bg-white/10 text-white/60"
+                      }`}
+                    >
                       {b.league}
                     </span>
                     <span className="text-xs text-white/40">{dateTime(b.kickoff)}</span>
@@ -80,6 +103,21 @@ export default async function Home() {
         </section>
       )}
     </div>
+  );
+}
+
+function FilterChip({ label, href, active }: { label: string; href: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`text-sm px-3 py-1 rounded-full border transition-colors ${
+        active
+          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+          : "border-white/10 bg-white/[0.03] text-white/60 hover:text-white hover:bg-white/[0.06]"
+      }`}
+    >
+      {label}
+    </Link>
   );
 }
 

@@ -24,10 +24,15 @@ function selectionLabel(sel: string, home: string, away: string): string {
   return "Unentschieden";
 }
 
-/** Die besten Value-Wetten (höchster erwarteter Vorteil zuerst). */
-export async function getTopValueBets(limit = 10): Promise<TopBet[]> {
+/** Die besten Value-Wetten (höchster erwarteter Vorteil zuerst). Optional nach Liga gefiltert. */
+export async function getTopValueBets(limit = 10, league?: string): Promise<TopBet[]> {
   const bets = await prisma.valueBet.findMany({
-    where: { fixture: { kickoff: { gte: new Date() } } },
+    where: {
+      fixture: {
+        kickoff: { gte: new Date() },
+        ...(league ? { league: { name: league } } : {}),
+      },
+    },
     orderBy: { edge: "desc" },
     take: limit,
     include: {
@@ -109,6 +114,27 @@ export async function getUpcomingMatches(): Promise<UpcomingMatch[]> {
       hasValue: f.valueBets.length > 0,
     };
   });
+}
+
+/** Ligen, die aktuell Value-Wetten haben (für Filter-Chips). */
+export async function getLeaguesWithBets(): Promise<string[]> {
+  const rows = await prisma.valueBet.findMany({
+    where: { fixture: { kickoff: { gte: new Date() } } },
+    select: { fixture: { select: { league: { select: { name: true } } } } },
+    distinct: ["fixtureId"],
+  });
+  return [...new Set(rows.map((r) => r.fixture.league.name))].sort();
+}
+
+/** Elo-Weltrangliste (aus dem Snapshot der internationalen Pipeline). */
+export async function getEloRanking(): Promise<{ team: string; rating: number; games: number }[]> {
+  const snap = await prisma.snapshot.findUnique({ where: { key: "elo-ranking" } });
+  if (!snap) return [];
+  try {
+    return JSON.parse(snap.value) as { team: string; rating: number; games: number }[];
+  } catch {
+    return [];
+  }
 }
 
 /** Kennzahlen für den Kopfbereich. */

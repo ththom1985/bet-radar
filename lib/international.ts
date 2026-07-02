@@ -38,14 +38,20 @@ export async function runInternational() {
   // Elo trainieren (Historie + laufende WM).
   const elo = new EloModel();
   const matches: EloMatch[] = [];
+  const display = new Map<string, string>(); // normalisiert -> lesbarer Name
+  const rec = (name: string) => {
+    const k = normalizeNation(name);
+    if (!display.has(k)) display.set(k, name);
+    return k;
+  };
   for (const h of HISTORY) {
     try {
       const fx = await fetchFixtures(h.league, h.season);
       for (const f of fx) {
         if (!isFinished(f.fixture.status.short) || f.goals.home == null || f.goals.away == null) continue;
         matches.push({
-          homeTeam: normalizeNation(f.teams.home.name),
-          awayTeam: normalizeNation(f.teams.away.name),
+          homeTeam: rec(f.teams.home.name),
+          awayTeam: rec(f.teams.away.name),
           homeGoals: f.goals.home,
           awayGoals: f.goals.away,
           date: new Date(f.fixture.date),
@@ -61,8 +67,8 @@ export async function runInternational() {
     const wc = (await getFdMatches("WC", WC_SEASON)).filter((m) => m.finished);
     for (const m of wc) {
       matches.push({
-        homeTeam: normalizeNation(m.homeTeam),
-        awayTeam: normalizeNation(m.awayTeam),
+        homeTeam: rec(m.homeTeam),
+        awayTeam: rec(m.awayTeam),
         homeGoals: m.homeGoals,
         awayGoals: m.awayGoals,
         date: m.date,
@@ -74,6 +80,18 @@ export async function runInternational() {
     /* WM-Ergebnisse aktuell nicht verfügbar */
   }
   elo.train(matches);
+
+  // Weltrangliste (lesbare Namen, genug Spiele) als Snapshot speichern → Ranglisten-Seite.
+  const ranking = elo
+    .ranking()
+    .map((r) => ({ team: display.get(r.team) ?? r.team, rating: r.rating, games: elo.games(r.team) }))
+    .filter((r) => r.games >= 5)
+    .slice(0, 48);
+  await prisma.snapshot.upsert({
+    where: { key: "elo-ranking" },
+    create: { key: "elo-ranking", value: JSON.stringify(ranking) },
+    update: { value: JSON.stringify(ranking) },
+  });
 
   // WM-Liga sicherstellen.
   const league = await prisma.league.upsert({
@@ -176,5 +194,5 @@ export async function runInternational() {
     }
   }
 
-  return { stored, valueCount, ranking: elo.ranking().slice(0, 10) };
+  return { stored, valueCount, ranking: ranking.slice(0, 10) };
 }
