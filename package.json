@@ -12,6 +12,7 @@
     "predict": "tsx scripts/predict.ts",
     "explain": "tsx scripts/explain.ts",
     "backtest": "tsx scripts/backtest.ts",
+    "backtest:ou": "tsx scripts/backtest-ou.ts",
     "intl": "tsx scripts/international.ts",
     "tennis": "tsx scripts/tennis.ts",
     "paper": "tsx scripts/paper.ts",
