@@ -97,6 +97,7 @@ model Prediction {
 /// Simulierte Wette (Paper-Trading) — KEIN echtes Geld. Trackt, ob die Tipps profitabel wären.
 model PaperBet {
   id             Int       @id @default(autoincrement())
+  matchKey       String    @unique // stabil über Syncs: Teams+Datum+Tipp (dedupe)
   fixtureId      Int?
   league         String
   homeTeam       String
@@ -113,7 +114,6 @@ model PaperBet {
   placedAt       DateTime  @default(now())
   settledAt      DateTime?
 
-  @@unique([fixtureId, selection])
   @@index([status])
 }
 

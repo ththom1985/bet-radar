@@ -27,6 +27,8 @@ export async function placeBets() {
   });
 
   const rows = candidates.map((b) => ({
+    // Stabiler Schlüssel: unabhängig von der (bei jedem Sync neuen) fixtureId.
+    matchKey: `${normalizeClub(b.fixture.homeTeam.name)}|${normalizeClub(b.fixture.awayTeam.name)}|${b.fixture.kickoff.toISOString().slice(0, 10)}|${b.selection}`,
     fixtureId: b.fixtureId,
     league: b.fixture.league.name,
     homeTeam: b.fixture.homeTeam.name,

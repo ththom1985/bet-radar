@@ -31,13 +31,38 @@ export async function fetchOdds(sportKey: string): Promise<OddsEvent[]> {
   return (await res.json()) as OddsEvent[];
 }
 
+// Referenz-Buchmacher: die Quoten, die der Nutzer real bekommt (Tipico ≈ Interwetten-Niveau).
+// Per Env änderbar. Falls dieser ein Spiel nicht anbietet → beste verfügbare Quote.
+export const REFERENCE_BOOKMAKER = process.env.REFERENCE_BOOKMAKER || "Tipico";
+
+type ThreeWayResult = { home: number; draw: number; away: number; bookmaker: string };
+
+/** 1X2-Quoten genau eines Buchmachers (oder null, wenn er das Spiel nicht komplett anbietet). */
+function bookmakerThreeWay(event: OddsEvent, title: string): ThreeWayResult | null {
+  const bm = event.bookmakers.find((b) => b.title === title);
+  const h2h = bm?.markets.find((m) => m.key === "h2h");
+  if (!h2h) return null;
+  let home = 0,
+    draw = 0,
+    away = 0;
+  for (const o of h2h.outcomes) {
+    if (o.name === event.home_team) home = o.price;
+    else if (o.name === event.away_team) away = o.price;
+    else if (o.name === "Draw") draw = o.price;
+  }
+  return home && draw && away ? { home, draw, away, bookmaker: title } : null;
+}
+
 /**
- * Extrahiert aus einem Event die besten 1X2-Quoten über alle Buchmacher.
- * Bei h2h heißen die Outcomes wie die Teams; "Draw" ist das Unentschieden.
+ * 1X2-Quoten für das Value-Modell: bevorzugt den Referenz-Buchmacher (Tipico),
+ * sonst die beste verfügbare Quote über alle Buchmacher.
  */
-export function bestThreeWay(
-  event: OddsEvent
-): { home: number; draw: number; away: number; bookmaker: string } | null {
+export function bestThreeWay(event: OddsEvent): ThreeWayResult | null {
+  // 1) Referenz-Buchmacher (das, was der Nutzer real bekommt)
+  const ref = bookmakerThreeWay(event, REFERENCE_BOOKMAKER);
+  if (ref) return ref;
+
+  // 2) Fallback: beste Quote über alle Buchmacher
   let home = 0,
     draw = 0,
     away = 0;
