@@ -23,25 +23,35 @@ function sameTeam(a: string, b: string): boolean {
 export async function placeBets() {
   const candidates = await prisma.valueBet.findMany({
     where: { edge: { gte: EDGE_THRESHOLD }, fixture: { kickoff: { gte: new Date() } } },
+    orderBy: { edge: "desc" }, // beste zuerst
     include: { fixture: { include: { homeTeam: true, awayTeam: true, league: true } } },
   });
 
-  const rows = candidates.map((b) => ({
-    // Stabiler Schlüssel: unabhängig von der (bei jedem Sync neuen) fixtureId.
-    matchKey: `${normalizeClub(b.fixture.homeTeam.name)}|${normalizeClub(b.fixture.awayTeam.name)}|${b.fixture.kickoff.toISOString().slice(0, 10)}|${b.selection}`,
-    fixtureId: b.fixtureId,
-    league: b.fixture.league.name,
-    homeTeam: b.fixture.homeTeam.name,
-    awayTeam: b.fixture.awayTeam.name,
-    kickoff: b.fixture.kickoff,
-    selection: b.selection,
-    selectionLabel: label(b.selection, b.fixture.homeTeam.name, b.fixture.awayTeam.name),
-    odds: b.bestOdds,
-    stake: STAKE,
-    edge: b.edge,
-    status: "OPEN",
-  }));
-  // skipDuplicates: bereits platzierte (fixtureId+selection) werden übersprungen.
+  // Nur EINE Wette pro Spiel: matchKey OHNE Ausgang; bei mehreren die mit dem höchsten Vorteil.
+  const seen = new Set<string>();
+  const rows = [];
+  for (const b of candidates) {
+    const matchKey = `${normalizeClub(b.fixture.homeTeam.name)}|${normalizeClub(b.fixture.awayTeam.name)}|${b.fixture.kickoff
+      .toISOString()
+      .slice(0, 10)}`;
+    if (seen.has(matchKey)) continue; // schon eine (bessere) Wette für dieses Spiel
+    seen.add(matchKey);
+    rows.push({
+      matchKey,
+      fixtureId: b.fixtureId,
+      league: b.fixture.league.name,
+      homeTeam: b.fixture.homeTeam.name,
+      awayTeam: b.fixture.awayTeam.name,
+      kickoff: b.fixture.kickoff,
+      selection: b.selection,
+      selectionLabel: label(b.selection, b.fixture.homeTeam.name, b.fixture.awayTeam.name),
+      odds: b.bestOdds,
+      stake: STAKE,
+      edge: b.edge,
+      status: "OPEN",
+    });
+  }
+  // skipDuplicates: bereits platzierte Matches (matchKey) werden übersprungen.
   const res = await prisma.paperBet.createMany({ data: rows, skipDuplicates: true });
   return res.count;
 }

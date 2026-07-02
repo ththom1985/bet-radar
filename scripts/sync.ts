@@ -132,12 +132,16 @@ async function syncUpcomingFromOdds(leagueId: number, sportKey: string) {
 
   let matched = 0;
   const unmatched: string[] = [];
+  const seenPairs = new Set<string>(); // gegen doppelte Listings der Odds-API (Saisonstart)
   for (const ev of events) {
     const three = bestThreeWay(ev);
     if (!three) {
       unmatched.push(`${ev.home_team} vs ${ev.away_team} (keine Quoten)`);
       continue;
     }
+    const pairKey = `${normalizeClub(ev.home_team)}|${normalizeClub(ev.away_team)}`;
+    if (seenPairs.has(pairKey)) continue; // dieselbe Paarung schon verarbeitet
+    seenPairs.add(pairKey);
     const homeId = await resolveTeam(ev.home_team);
     const awayId = await resolveTeam(ev.away_team);
 
@@ -196,7 +200,14 @@ async function main() {
         update: {},
       });
 
-      const teamCount = await syncHistoryTeams(league.id, cfg.apiFootballId);
+      // Teams aus API-Football (für Trainer-IDs) — Ausfall (z.B. Tageslimit) darf
+      // den Rest NICHT abbrechen; Teams entstehen sonst über die aktuelle Saison/Quoten.
+      let teamCount = 0;
+      try {
+        teamCount = await syncHistoryTeams(league.id, cfg.apiFootballId);
+      } catch (e) {
+        console.log(`   API-Football-Teams übersprungen: ${(e as Error).message.slice(0, 45)}`);
+      }
       // Aktuelle Saison 25/26 (BL ← OpenLigaDB, sonst ← football-data.org).
       let current = 0;
       try {

@@ -122,10 +122,14 @@ export async function runInternational() {
   const events = await fetchOdds("soccer_fifa_world_cup");
   let stored = 0;
   let valueCount = 0;
+  const seenPairs = new Set<string>(); // gegen doppelte Listings
 
   for (const ev of events) {
     const three = bestThreeWay(ev);
     if (!three) continue;
+    const pairKey = `${normalizeNation(ev.home_team)}|${normalizeNation(ev.away_team)}`;
+    if (seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
     const homeId = await resolveTeam(ev.home_team);
     const awayId = await resolveTeam(ev.away_team);
     const hk = normalizeNation(ev.home_team);
@@ -170,7 +174,10 @@ export async function runInternational() {
       update: { expHomeGoals, expAwayGoals, pHome: probs.pHome, pDraw: probs.pDraw, pAway: probs.pAway },
     });
 
-    const candidates = findValue(probs, three, { minOdds: MIN_ODDS, minEdge: MIN_EDGE }).filter((c) => c.edge <= MAX_EDGE);
+    // Nur die EINE beste Wette pro Spiel.
+    const candidates = findValue(probs, three, { minOdds: MIN_ODDS, minEdge: MIN_EDGE })
+      .filter((c) => c.edge <= MAX_EDGE)
+      .slice(0, 1);
     for (const c of candidates) {
       const selName = c.selection === "HOME" ? ev.home_team : c.selection === "AWAY" ? ev.away_team : "Unentschieden";
       const reason =

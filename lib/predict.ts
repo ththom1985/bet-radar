@@ -104,7 +104,9 @@ export async function runPredictions() {
 
         const candidates = findValue(probs, best, { minOdds: MIN_ODDS, minEdge: MIN_EDGE })
           // Unplausibel hohe Edges aussortieren (Datenfehler statt Value).
-          .filter((c) => c.edge <= MAX_PLAUSIBLE_EDGE);
+          .filter((c) => c.edge <= MAX_PLAUSIBLE_EDGE)
+          // Nur die EINE beste Wette pro Spiel (kein Sieg+Remis gleichzeitig).
+          .slice(0, 1);
 
         for (const c of candidates) {
           await prisma.valueBet.create({
