@@ -14,9 +14,11 @@ export default async function PortfolioPage() {
       <section>
         <h1 className="text-2xl font-semibold">Paper-Trading-Tracker</h1>
         <p className="text-white/50 mt-1 text-sm">
-          Simuliert automatisch {eur(p.stake)} pro Tipp mit einem Vorteil ab{" "}
-          {(p.edgeThreshold * 100).toFixed(0)}%, ausgehend von {eur(p.initial)} Startkapital.
-          Inklusive {(p.taxRate * 100).toFixed(0)}% Wettsteuer auf den Umsatz.
+          Simuliert Wetten nur auf Spiele des <strong className="text-white/70">jeweiligen Tages</strong>{" "}
+          mit einem Vorteil ab {(p.edgeThreshold * 100).toFixed(0)}%. Der Einsatz wird an die Quote
+          angepasst, sodass ein Gewinn immer {eur(p.targetReturn)} zurückbringt (Verdopplung der
+          20-€-Basis). Startkapital {eur(p.initial)}, inkl. {(p.taxRate * 100).toFixed(0)}% Wettsteuer.
+          An Tagen ohne guten Value wird nicht getippt.
         </p>
       </section>
 
@@ -66,6 +68,7 @@ export default async function PortfolioPage() {
                 <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/50 w-32 truncate">{b.league}</span>
                 <span className="flex-1 truncate">{b.match}</span>
                 <span className="text-emerald-300">{b.pick}</span>
+                <span className="font-mono text-white/40 w-16 text-right">{b.stake.toFixed(2)} €</span>
                 <span className="font-mono text-white/60 w-14 text-right">{b.odds.toFixed(2)}</span>
                 <span className="text-xs text-white/30 w-28 text-right hidden md:block">{dateTime(b.kickoff)}</span>
               </div>

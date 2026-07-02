@@ -6,9 +6,14 @@ import { normalizeClub } from "./clubs";
 import { normalizeNation } from "./nations";
 
 export const INITIAL_BANKROLL = 1000; // €, virtuell
-export const STAKE = 20; // € Einsatz je Wette (flach, 2% des Startkapitals)
-export const EDGE_THRESHOLD = 0.1; // "gewisses Potenzial": nur Tipps ab +10% Vorteil
+export const TARGET_RETURN = 40; // € Ziel-Rückfluss bei Gewinn (= Verdopplung der 20€-Basis)
+export const EDGE_THRESHOLD = 0.1; // "guter Value": nur Tipps ab +10% Vorteil
 export const TAX_RATE = 0.05; // 5% deutsche Wettsteuer auf den Umsatz
+
+// Einsatz an die Quote anpassen, sodass ein Gewinn immer TARGET_RETURN zurückbringt.
+function stakeFor(odds: number): number {
+  return Math.round((TARGET_RETURN / odds) * 100) / 100;
+}
 
 function label(sel: string, home: string, away: string) {
   return sel === "HOME" ? `Sieg ${home}` : sel === "AWAY" ? `Sieg ${away}` : "Unentschieden";
@@ -21,8 +26,13 @@ function sameTeam(a: string, b: string): boolean {
 
 /** Setzt simulierte Wetten auf alle aktuellen Value-Tipps über der Potenzial-Schwelle. */
 export async function placeBets() {
+  // Nur Spiele vom SELBEN Tag (ab jetzt bis Tagesende). Keine guten dabei → gar nicht tippen.
+  const now = new Date();
+  const endOfDay = new Date(now);
+  endOfDay.setUTCHours(23, 59, 59, 999);
+
   const candidates = await prisma.valueBet.findMany({
-    where: { edge: { gte: EDGE_THRESHOLD }, fixture: { kickoff: { gte: new Date() } } },
+    where: { edge: { gte: EDGE_THRESHOLD }, fixture: { kickoff: { gte: now, lte: endOfDay } } },
     orderBy: { edge: "desc" }, // beste zuerst
     include: { fixture: { include: { homeTeam: true, awayTeam: true, league: true } } },
   });
@@ -46,7 +56,7 @@ export async function placeBets() {
       selection: b.selection,
       selectionLabel: label(b.selection, b.fixture.homeTeam.name, b.fixture.awayTeam.name),
       odds: b.bestOdds,
-      stake: STAKE,
+      stake: stakeFor(b.bestOdds),
       edge: b.edge,
       status: "OPEN",
     });
@@ -92,7 +102,7 @@ export async function settleBets() {
 
 export type Portfolio = {
   initial: number;
-  stake: number;
+  targetReturn: number;
   edgeThreshold: number;
   taxRate: number;
   openCount: number;
@@ -108,7 +118,7 @@ export type Portfolio = {
   bankroll: number; // initial + netPL
   roi: number; // netPL / turnover
   equity: { date: string; bankroll: number }[]; // Verlauf
-  openBets: { league: string; match: string; pick: string; odds: number; kickoff: Date; edge: number }[];
+  openBets: { league: string; match: string; pick: string; odds: number; stake: number; kickoff: Date; edge: number }[];
   recent: { league: string; match: string; pick: string; odds: number; score: string; won: boolean; settledAt: Date }[];
 };
 
@@ -145,7 +155,7 @@ export async function getPortfolio(): Promise<Portfolio> {
 
   return {
     initial: INITIAL_BANKROLL,
-    stake: STAKE,
+    targetReturn: TARGET_RETURN,
     edgeThreshold: EDGE_THRESHOLD,
     taxRate: TAX_RATE,
     openCount: openBetsRaw.length,
@@ -166,6 +176,7 @@ export async function getPortfolio(): Promise<Portfolio> {
       match: `${b.homeTeam} vs ${b.awayTeam}`,
       pick: b.selectionLabel,
       odds: b.odds,
+      stake: b.stake,
       kickoff: b.kickoff,
       edge: b.edge,
     })),
