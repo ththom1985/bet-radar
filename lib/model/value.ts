@@ -11,7 +11,17 @@
 
 import type { MatchProbabilities } from "./poisson";
 import type { ThreeWayOdds } from "../odds";
-import { impliedProbability } from "../odds";
+import { impliedProbability, fairProbabilities } from "../odds";
+
+// Shrinkage zum Markt: der Buchmacher ist besser kalibriert als unser Modell.
+// Wir mischen Marktmeinung + Modell → nur wo das Modell STARK & plausibel abweicht,
+// bleibt Value übrig (killt überhebliche Außenseiter-"Values").
+const MARKET_WEIGHT = 0.6;
+// Mindest-Gewinnwahrscheinlichkeit: keine reinen Lotto-Tipps (die Chance muss vernünftig sein).
+const MIN_MODEL_PROB = 0.33;
+
+const blendToMarket = (model: number, marketFair: number) =>
+  MARKET_WEIGHT * marketFair + (1 - MARKET_WEIGHT) * model;
 
 export type Selection = "HOME" | "DRAW" | "AWAY";
 
@@ -42,10 +52,11 @@ export function findValue(
   const minOdds = opts.minOdds ?? 1.8;
   const minEdge = opts.minEdge ?? 0.05;
 
+  const fair = fairProbabilities(odds); // faire Marktwahrscheinlichkeiten (ohne Marge)
   const base: { selection: Selection; modelProb: number; odds: number }[] = [
-    { selection: "HOME", modelProb: probs.pHome, odds: odds.home },
-    { selection: "DRAW", modelProb: probs.pDraw, odds: odds.draw },
-    { selection: "AWAY", modelProb: probs.pAway, odds: odds.away },
+    { selection: "HOME", modelProb: blendToMarket(probs.pHome, fair.home), odds: odds.home },
+    { selection: "DRAW", modelProb: blendToMarket(probs.pDraw, fair.draw), odds: odds.draw },
+    { selection: "AWAY", modelProb: blendToMarket(probs.pAway, fair.away), odds: odds.away },
   ];
   const rows: ValueCandidate[] = base.map(({ selection, modelProb, odds }) => ({
     selection,
@@ -56,7 +67,7 @@ export function findValue(
   }));
 
   return rows
-    .filter((r) => r.odds >= minOdds && r.edge >= minEdge)
+    .filter((r) => r.odds >= minOdds && r.edge >= minEdge && r.modelProb >= MIN_MODEL_PROB)
     .sort((a, b) => b.edge - a.edge);
 }
 
@@ -70,9 +81,13 @@ export function findValueTwoWay(
 ): ValueCandidate[] {
   const minOdds = opts.minOdds ?? 1.8;
   const minEdge = opts.minEdge ?? 0.05;
+  // Faire Marktwahrscheinlichkeiten (2-Wege, Marge entfernt) → Shrinkage.
+  const rh = 1 / oddsHome;
+  const ra = 1 / oddsAway;
+  const sum = rh + ra;
   const base: { selection: Selection; modelProb: number; odds: number }[] = [
-    { selection: "HOME", modelProb: pHome, odds: oddsHome },
-    { selection: "AWAY", modelProb: pAway, odds: oddsAway },
+    { selection: "HOME", modelProb: blendToMarket(pHome, rh / sum), odds: oddsHome },
+    { selection: "AWAY", modelProb: blendToMarket(pAway, ra / sum), odds: oddsAway },
   ];
   return base
     .map(({ selection, modelProb, odds }) => ({
@@ -82,6 +97,6 @@ export function findValueTwoWay(
       impliedProb: impliedProbability(odds),
       edge: modelProb * odds - 1,
     }))
-    .filter((r) => r.odds >= minOdds && r.edge >= minEdge)
+    .filter((r) => r.odds >= minOdds && r.edge >= minEdge && r.modelProb >= MIN_MODEL_PROB)
     .sort((a, b) => b.edge - a.edge);
 }

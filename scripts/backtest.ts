@@ -152,7 +152,10 @@ const goalsAway = (r: Row) => parseInt(r["FTAG"], 10);
 const sotHome = (r: Row) => parseFloat(r["HST"]);
 const sotAway = (r: Row) => parseFloat(r["AST"]);
 
-function betOne(s: Strengths, r: Row, t: Tally, total: Tally) {
+// Kalibrierung: Vorhersage-Wahrscheinlichkeit vs. tatsächlicher Ausgang je Wette.
+const calib: { p: number; won: boolean }[] = [];
+
+function betOne(s: Strengths, r: Row, t: Tally, total: Tally, collectCalib = false) {
   const home = r["HomeTeam"], away = r["AwayTeam"];
   if ((s.hist.get(home) ?? 0) < MIN_HISTORY || (s.hist.get(away) ?? 0) < MIN_HISTORY) return;
   const odds = getOdds(r);
@@ -165,6 +168,7 @@ function betOne(s: Strengths, r: Row, t: Tally, total: Tally) {
       (c.selection === "HOME" && result === "H") ||
       (c.selection === "DRAW" && result === "D") ||
       (c.selection === "AWAY" && result === "A");
+    if (collectCalib) calib.push({ p: c.modelProb, won });
     for (const acc of [t, total]) {
       acc.bets++;
       acc.staked += 1;
@@ -196,7 +200,7 @@ async function main() {
       const sGoals = buildStrengths(train, goalsHome, goalsAway);
       const sSot = buildStrengths(train, sotHome, sotAway);
       for (const r of test) {
-        betOne(sGoals, r, lgGoals, totGoals);
+        betOne(sGoals, r, lgGoals, totGoals, true);
         betOne(sSot, r, lgSot, totSot);
       }
     }
@@ -215,6 +219,34 @@ async function main() {
   );
   console.log("\nBesserer ROI = das Modell hätte auf diesen Daten weniger verloren / mehr gewonnen.");
   console.log("Ein Lauf ist kein Beweis (Varianz). Beide gegen die harte Schlussquoten-Benchmark.");
+
+  printCalibration();
+}
+
+// Zeigt, ob die Vorhersagen kalibriert sind: gewinnen "35%-Tipps" auch ~35%?
+function printCalibration() {
+  console.log("\n" + "─".repeat(78));
+  console.log("KALIBRIERUNG (Tore-Modell): Vorhergesagt vs. tatsächlich gewonnen");
+  const buckets = [
+    [0.33, 0.4],
+    [0.4, 0.5],
+    [0.5, 0.6],
+    [0.6, 0.7],
+    [0.7, 1.01],
+  ];
+  for (const [lo, hi] of buckets) {
+    const inB = calib.filter((c) => c.p >= lo && c.p < hi);
+    if (inB.length === 0) continue;
+    const predicted = (inB.reduce((s, c) => s + c.p, 0) / inB.length) * 100;
+    const actual = (inB.filter((c) => c.won).length / inB.length) * 100;
+    const diff = actual - predicted;
+    console.log(
+      `  ${(lo * 100).toFixed(0)}–${(hi * 100 > 100 ? 100 : hi * 100).toFixed(0)}%: ` +
+        `vorhergesagt ${predicted.toFixed(1)}% · tatsächlich ${actual.toFixed(1)}% ` +
+        `(${diff >= 0 ? "+" : ""}${diff.toFixed(1)}) · ${inB.length} Wetten`
+    );
+  }
+  console.log("Ideal: 'tatsächlich' ≈ 'vorhergesagt'. Systematisch tiefer = Modell überschätzt seine Tipps.");
 }
 
 main().catch((e) => {
