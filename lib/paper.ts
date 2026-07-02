@@ -4,6 +4,7 @@
 import { prisma } from "./prisma";
 import { normalizeClub } from "./clubs";
 import { normalizeNation } from "./nations";
+import { normalizePlayer } from "./players";
 
 export const INITIAL_BANKROLL = 1000; // €, virtuell
 export const TARGET_RETURN = 40; // € Ziel-Rückfluss bei Gewinn (= Verdopplung der 20€-Basis)
@@ -21,7 +22,11 @@ function label(sel: string, home: string, away: string) {
 
 // Zwei Namen gelten als dasselbe Team, wenn Vereins- ODER Nations-Normalisierung passt.
 function sameTeam(a: string, b: string): boolean {
-  return normalizeClub(a) === normalizeClub(b) || normalizeNation(a) === normalizeNation(b);
+  return (
+    normalizeClub(a) === normalizeClub(b) ||
+    normalizeNation(a) === normalizeNation(b) ||
+    normalizePlayer(a) === normalizePlayer(b) // Tennis-Spieler
+  );
 }
 
 /** Setzt simulierte Wetten auf alle aktuellen Value-Tipps über der Potenzial-Schwelle. */

@@ -59,3 +59,29 @@ export function findValue(
     .filter((r) => r.odds >= minOdds && r.edge >= minEdge)
     .sort((a, b) => b.edge - a.edge);
 }
+
+/** Value bei 2-Wege-Märkten (z.B. Tennis: nur Sieg Spieler A / Spieler B). */
+export function findValueTwoWay(
+  pHome: number,
+  pAway: number,
+  oddsHome: number,
+  oddsAway: number,
+  opts: ValueOptions = {}
+): ValueCandidate[] {
+  const minOdds = opts.minOdds ?? 1.8;
+  const minEdge = opts.minEdge ?? 0.05;
+  const base: { selection: Selection; modelProb: number; odds: number }[] = [
+    { selection: "HOME", modelProb: pHome, odds: oddsHome },
+    { selection: "AWAY", modelProb: pAway, odds: oddsAway },
+  ];
+  return base
+    .map(({ selection, modelProb, odds }) => ({
+      selection,
+      modelProb,
+      odds,
+      impliedProb: impliedProbability(odds),
+      edge: modelProb * odds - 1,
+    }))
+    .filter((r) => r.odds >= minOdds && r.edge >= minEdge)
+    .sort((a, b) => b.edge - a.edge);
+}

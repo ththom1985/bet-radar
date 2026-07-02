@@ -33,6 +33,8 @@ jobs:
         run: npm run sync
       - name: WM / International
         run: npm run intl
+      - name: Tennis (ATP/WTA)
+        run: npm run tennis
       - name: Begründungen (Agent)
         run: npm run explain
       - name: Paper-Trading (platzieren + abrechnen)
